@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"log"
-	"math/rand"
 	"net"
 	"strings"
 	"sync"
@@ -21,33 +20,15 @@ type Room struct {
 	Register chan *User
 	Unregister chan *User
 	Broadcast chan string
-	MaxRoomSize int
-	RoomCode int
 	mu sync.Mutex
 }
 
-type Server struct {
-	Rooms map[*Room]bool
-}
-
-func NewServer() *Server {
-	return &Server{
-		Rooms: make(map[*Room]bool),
-	}
-}
-
-func (s *Server) Run() {
-
-}
-
-func NewRoom(roomSize, roomCode int) *Room {
+func NewRoom() *Room {
 	return &Room{
 		Users: make(map[*User]bool),
 		Register: make(chan *User),
 		Unregister: make(chan *User),
 		Broadcast: make(chan string),
-		MaxRoomSize: roomSize,
-		RoomCode: roomCode,
 	}
 }
 
@@ -86,12 +67,6 @@ func (r *Room) Run() {
 	}
 }
 
-func generateCode() int {
-	min, max := 1000, 9999
-	code := rand.Intn(max - min + 1) + min
-	return code
-}
-
 func main() {
 	listener, err := net.Listen("tcp", ":8080")
 	if err != nil {
@@ -99,9 +74,8 @@ func main() {
 	}
 	defer listener.Close()
 
-	roomCode := generateCode()
-	server := NewRoom(10, roomCode)
-	go server.Run()
+	room := NewRoom()
+	go room.Run()
 
 	fmt.Printf("Server running at localhost:8080\n")
 	for {
@@ -111,7 +85,7 @@ func main() {
 			continue
 		}
 
-		go handleConnection(conn, server)
+		go handleConnection(conn, room)
 	}
 }
 
@@ -137,7 +111,7 @@ func handleConnection(conn net.Conn, room *Room) {
 	defer func () {
 		room.Broadcast<- fmt.Sprintf("--- %s has left the chat.\r\n", newUser.Username)
 		room.Unregister<- newUser
-
+		conn.Write([]byte("You left the chat."))
 		conn.Close()
 	}()
 
@@ -151,7 +125,6 @@ func handleConnection(conn net.Conn, room *Room) {
 	}()
 	room.Broadcast<- fmt.Sprintf("--- %s has joined the chat.\r\n", newUser.Username)
 
-	
 	// Take input from user and broadcast to the room
 	scanner := bufio.NewScanner(conn)
 	for scanner.Scan() {

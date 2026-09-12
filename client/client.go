@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -17,31 +18,32 @@ func main() {
 
 	fmt.Print("Enter username: ")
 
-	// Read input and send to server
+	// Receive messages from the server
 	go func () {
 		serverReader := bufio.NewReader(conn)
 		for {
 			msg, err := serverReader.ReadString('\n')
 			if err != nil { 
-				/* 
-				TO FIX: WHEN CLOSING THE SERVER WITHOUT ENDING CLIENT SIDE
-				- THE CURRENT FORMAT CAUSES THE ERROR MESSAGE TO PRINT IN A LOOP
-				- RETURN WILL CAUSE THE MESSAGE TO PLAY ONCE, BUT CLIENT WILL STILL RUN
-				- LOG.FATALF SOLVES THE PROBLEM, BUT TRY TO IMPLEMENT A WAY WHERE LOG.FATALF WILL ONLY BE USED FOR WHEN THE SERVER AND CLIENT CONNECTION IS TERMINATED
-				*/
-				fmt.Printf("Failed to read incoming message. %s\n", err)
-				continue
+				if err == io.EOF {
+					log.Fatalf("%s\n", msg)
+				}
+				
+				log.Fatalf("Failed to read incoming message. %s\n", err)
 			}
 
 			fmt.Printf("%s", msg)
 		}
 	}()
 
-	// Receive input from server and print
+	// Read input and send to the server
 	inputReader := bufio.NewReader(os.Stdin)
 	for {
 		msg, err := inputReader.ReadString('\n')
 		if err != nil {
+			if err == io.EOF {
+				log.Fatalf("%s\n", msg)
+			}
+
 			fmt.Printf("Failed to read your message. %s\n", err)
 			continue
 		}
